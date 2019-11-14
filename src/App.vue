@@ -137,6 +137,13 @@ const fuelAuth = {
     permission: 'cosign',
 }
 
+const fuelNoop: Action = {
+    account: 'greymassnoop',
+    name: 'noop',
+    authorization: [fuelAuth],
+    data: '',
+}
+
 enum Chain {
     EOS,
     JUNGLE,
@@ -429,7 +436,10 @@ export default class App extends Vue {
         this.isTransacting = true
         this.api.transact(
             {
-                actions: [this.resolvedAction],
+                actions: [
+                    fuelNoop,
+                    this.resolvedAction
+                ],
             },
             {
                 broadcast: true,
