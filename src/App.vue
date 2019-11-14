@@ -141,7 +141,7 @@ const fuelNoop: Action = {
     account: 'greymassnoop',
     name: 'noop',
     authorization: [fuelAuth],
-    data: '',
+    data: {},
 }
 
 enum Chain {
