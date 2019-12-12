@@ -286,7 +286,6 @@ export default class App extends Vue {
             account: this.contract,
             name: this.selectedAction!,
             authorization: [
-                fuelAuth,
                 {
                     actor: this.wallet.auth.accountName,
                     permission: this.wallet.auth.permission,
