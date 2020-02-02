@@ -127,6 +127,7 @@ import * as transit from 'eos-transit'
 import ScatterProvider from 'eos-transit-scatter-provider'
 import KeycatProvider from 'eos-transit-keycat-provider'
 import SimpleosProvider from 'eos-transit-simpleos-provider'
+import AnchorLinkProvider from 'eos-transit-anchorlink-provider'
 
 import { Debounce } from './utils'
 import TokenAbi from './eosio.token.abi'
@@ -185,7 +186,7 @@ export default class App extends Vue {
     }
 
     get accessContext() {
-        const walletProviders = [ScatterProvider(), SimpleosProvider()]
+        const walletProviders = [AnchorLinkProvider('fueldemo', {}), ScatterProvider(), SimpleosProvider()]
         if (this.selectedChain === Chain.EOS) {
             walletProviders.push(KeycatProvider())
         }
@@ -204,12 +205,10 @@ export default class App extends Vue {
         return this.walletProviders[this.selectedWalletProvider]
     }
 
-    get wallet(): transit.Wallet {
-        return this.accessContext.initWallet(this.walletProvider)
-    }
-
-    get api() {
-        const api = this.wallet.eosApi
+    wallet?: transit.Wallet
+    makeWallet() {
+        const wallet = this.accessContext.initWallet(this.walletProvider)
+        const api = wallet.eosApi
         // swizzle out authority provider to ignore the fuel permission
         const getRequiredKeys = api.authorityProvider.getRequiredKeys.bind(api.authorityProvider)
         api.authorityProvider.getRequiredKeys = async (args: AuthorityProviderArgs) => {
@@ -232,11 +231,12 @@ export default class App extends Vue {
                 transaction,
             })
         }
-        return api
+        wallet.eosApi = api
+        return wallet
     }
 
     get accountName() {
-        return this.wallet.auth ? this.wallet.auth.accountName : ''
+        return this.auth ? this.auth.accountName : ''
     }
 
     get contractActions() {
@@ -247,7 +247,7 @@ export default class App extends Vue {
     }
 
     get resolvedAction() {
-        if (!this.wallet.auth) {
+        if (!(this.wallet && this.auth)) {
             return null
         }
         if (!this.fields) {
@@ -258,7 +258,7 @@ export default class App extends Vue {
         for (let { name, type } of this.fields) {
             let value = this.actionData[name]
             if (this.placeholderFields.includes(name)) {
-                value = this.wallet.auth.accountName
+                value = this.auth.accountName
             }
             let isArray = false
             if (type.slice(-2) === '[]') {
@@ -287,8 +287,8 @@ export default class App extends Vue {
             name: this.selectedAction!,
             authorization: [
                 {
-                    actor: this.wallet.auth.accountName,
-                    permission: this.wallet.auth.permission,
+                    actor: this.auth.accountName,
+                    permission: this.auth.permission,
                 },
             ],
             data,
@@ -356,11 +356,12 @@ export default class App extends Vue {
     }
 
     async loginAsync() {
-        if (!this.wallet.connected) {
-            await this.wallet.connect()
+        this.wallet = this.makeWallet()
+        if (!this.wallet!.connected) {
+            await this.wallet!.connect()
         }
-        await this.wallet.login()
-        return this.wallet.auth!
+        await this.wallet!.login()
+        return this.wallet!.auth!
     }
 
     logout() {
@@ -388,7 +389,7 @@ export default class App extends Vue {
         this.contractLoading = true
         this.contractError = null
         this.contractAbi = null
-        this.api
+        this.wallet!.eosApi
             .getAbi(contract)
             .then((abi) => {
                 if (this.contract === contract) {
@@ -433,11 +434,11 @@ export default class App extends Vue {
 
     transact() {
         this.isTransacting = true
-        this.api.transact(
+        this.wallet!.eosApi.transact(
             {
                 actions: [
                     fuelNoop,
-                    this.resolvedAction
+                    this.resolvedAction,
                 ],
             },
             {
